@@ -2,6 +2,8 @@ from fastapi import FastAPI
 from pydantic import BaseModel
 from typing import List
 from factura_afip import emitir_factura
+from fastapi.responses import PlainTextResponse
+import os
 
 app = FastAPI()
 
@@ -48,3 +50,15 @@ def facturar(venta: Venta):
             "estado": "rechazado",
             "error": f"Error en emitir_factura: {str(e)}"
         }
+
+# ========================================
+# ENDPOINT DE DIAGNÓSTICO PARA TOKEN CACHE
+# ========================================
+@app.get("/diagnostico_ta", response_class=PlainTextResponse)
+def diagnostico_ta():
+    if not os.path.exists("token_afip.xml"):
+        return "No existe el archivo token_afip.xml"
+
+    with open("token_afip.xml", "r") as f:
+        contenido = f.read()
+    return contenido
