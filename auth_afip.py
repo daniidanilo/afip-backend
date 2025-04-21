@@ -3,6 +3,7 @@ import datetime
 import uuid
 import subprocess
 import os
+import requests
 from lxml import etree
 from zeep import Client
 
@@ -35,16 +36,30 @@ KEY_PATH = "afip_cert/afip.key"
 WSDL_WSAA = "https://wsaahomo.afip.gov.ar/ws/services/LoginCms?WSDL"
 SERVICE = "wsfe"
 
+# ==========================
+# 3. HORA DESDE SERVIDOR AFIP
+# ==========================
+def obtener_hora_afip():
+    try:
+        r = requests.get("https://serviciosjava.afip.gob.ar/ws/services/ServerTime")
+        if r.status_code == 200:
+            hora_afip = etree.fromstring(r.content).findtext(".//dateTime")
+            return datetime.datetime.strptime(hora_afip, "%Y-%m-%dT%H:%M:%S")
+    except Exception as e:
+        print(f"Error al obtener hora AFIP: {e}")
+    
+    # Fallback en caso de error
+    return datetime.datetime.utcnow()
+
 # ============================
-# 3. CREACIÓN DEL TICKET XML
+# 4. CREACIÓN DEL TICKET XML
 # ============================
 def crear_login_ticket_request(filename="loginTicketRequest.xml"):
     unique_id = str(uuid.uuid4().int)[:10]
+    now = obtener_hora_afip()
 
-    # Usar hora UTC sin zona (AFIP espera eso)
-    now = datetime.datetime.utcnow()
-    generation_time = (now - datetime.timedelta(minutes=1)).strftime("%Y-%m-%dT%H:%M:%S")
-    expiration_time = (now + datetime.timedelta(minutes=5)).strftime("%Y-%m-%dT%H:%M:%S")
+    generation_time = (now - datetime.timedelta(minutes=10)).strftime("%Y-%m-%dT%H:%M:%S")
+    expiration_time = (now + datetime.timedelta(minutes=10)).strftime("%Y-%m-%dT%H:%M:%S")
 
     root = etree.Element("loginTicketRequest", version="1.0")
     header = etree.SubElement(root, "header")
@@ -58,7 +73,7 @@ def crear_login_ticket_request(filename="loginTicketRequest.xml"):
     return filename
 
 # =============================
-# 4. FIRMA DEL XML CON OPENSSL
+# 5. FIRMA DEL XML CON OPENSSL
 # =============================
 def firmar_ticket_con_openssl(xml_path, cms_path):
     subprocess.run([
@@ -72,7 +87,7 @@ def firmar_ticket_con_openssl(xml_path, cms_path):
     ], check=True)
 
 # ==================================
-# 5. CONSUMO DEL SERVICIO WSAA AFIP
+# 6. CONSUMO DEL SERVICIO WSAA AFIP
 # ==================================
 def obtener_token_y_sign():
     xml_path = "loginTicketRequest.xml"
