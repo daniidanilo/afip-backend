@@ -24,6 +24,7 @@ def guardar_certificados():
     with open("afip_cert/afip.key", "wb") as key_file:
         key_file.write(base64.b64decode(key_b64))
 
+# Ejecutamos esto al importar el archivo
 guardar_certificados()
 
 # ======================
@@ -34,18 +35,16 @@ KEY_PATH = "afip_cert/afip.key"
 WSDL_WSAA = "https://wsaahomo.afip.gov.ar/ws/services/LoginCms?WSDL"
 SERVICE = "wsfe"
 
-# ===========================
-# 3. CREACIÓN DEL LOGIN TICKET
-# ===========================
+# ============================
+# 3. CREACIÓN DEL TICKET XML
+# ============================
 def crear_login_ticket_request(filename="loginTicketRequest.xml"):
-    unique_id = str(uuid.uuid4().int)[:10]
-
-    # Fuerzo hora con timezone UTC-3 (Argentina)
-    tz = datetime.timezone(datetime.timedelta(hours=-3))
-    now = datetime.datetime.now(tz)
+    argentina_tz = datetime.timezone(datetime.timedelta(hours=-3))
+    now = datetime.datetime.now(argentina_tz)
 
     generation_time = (now - datetime.timedelta(minutes=10)).strftime("%Y-%m-%dT%H:%M:%S")
     expiration_time = (now + datetime.timedelta(minutes=10)).strftime("%Y-%m-%dT%H:%M:%S")
+    unique_id = str(uuid.uuid4().int)[:10]
 
     root = etree.Element("loginTicketRequest", version="1.0")
     header = etree.SubElement(root, "header")
