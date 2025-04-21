@@ -1,67 +1,72 @@
 import os
-from afipws.wsaa import WSAA
-from afipws.wsfev1 import WSFEv1
 from datetime import datetime
+from zeep import Client
+from zeep.transports import Transport
 
-# Paths a los archivos
+# Certificados
 CERT = "afip_cert/afip.crt"
 KEY = "afip_cert/afip.key"
-CUIT_EMISOR = "20352305368"  # Reemplazá con tu CUIT
+CUIT_EMISOR = "20352305368"  # Reemplazalo con tu CUIT real
 
-# Endpoint del entorno de homologación
+# WSDL y endpoint de homologación
+WSDL_WSAA = "https://wsaahomo.afip.gov.ar/ws/services/LoginCms?WSDL"
 WSDL_WSFE = "https://wswhomo.afip.gov.ar/wsfev1/service.asmx?WSDL"
 
+# Para simplificar: leer CMS generado localmente
+def obtener_token_sign():
+    # Acá deberías implementar el pedido real al WSAA usando xmlsec o cargar un CMS ya generado (como prueba)
+    raise NotImplementedError("Falta implementar WSAA: generación de CMS y parseo de respuesta")
+
 def emitir_factura(productos: list, total: float, forma_pago: str):
-    # 1. Obtener token y sign con WSAA
-    wsaa = WSAA()
-    ta = wsaa.Autenticar(
-        servicio="wsfe",
-        cert=CERT,
-        key=KEY,
-        wsdl="https://wsaa.afip.gov.ar/wsaa/wsaa.wsdl",
-        cache=False
-    )
-    token = ta["token"]
-    sign = ta["sign"]
+    token, sign = obtener_token_sign()
 
-    # 2. Iniciar conexión con WSFEv1
-    wsfe = WSFEv1(CUIT_EMISOR)
-    wsfe.SetTicketAcceso(token, sign)
+    client = Client(wsdl=WSDL_WSFE, transport=Transport(timeout=10))
+    client.service.__setattr__('CUIT', CUIT_EMISOR)
 
-    # 3. Obtener el último comprobante autorizado
     punto_venta = 1
-    tipo_cbte = 11  # Factura C
-    ultimo = wsfe.CompUltimoAutorizado(punto_venta, tipo_cbte)
-    nro_cbte = ultimo + 1
-
-    # 4. Armar y emitir comprobante
+    tipo_cbte = 11
     fecha = datetime.today().strftime("%Y%m%d")
-    resultado = wsfe.CrearFactura(
-        concepto=1,  # Productos
-        doc_tipo=99,  # Consumidor final
-        doc_nro=0,
-        cbte_nro=nro_cbte,
-        cbte_tipo=tipo_cbte,
-        cbte_punto=punto_venta,
-        cbte_fecha=fecha,
-        imp_total=total,
-        imp_tot_conc=0.00,
-        imp_neto=total,
-        imp_iva=0.00,
-        imp_trib=0.00,
-        moneda_id="PES",
-        moneda_ctz=1.000
-    )
 
-    if resultado["Resultado"] == "A":
-        return {
-            "cae": resultado["CAE"],
-            "vto_cae": resultado["CAEFchVto"],
-            "nro_comprobante": nro_cbte,
-            "fecha": fecha,
-            "total": total,
-            "forma_pago": forma_pago,
-            "productos": productos
+    # Obtener último número
+    ultimo_nro = client.service.FECompUltimoAutorizado(CUIT_EMISOR, punto_venta, tipo_cbte)["CbteNro"]
+
+    datos = {
+        "FeCAEReq": {
+            "FeCabReq": {
+                "CantReg": 1,
+                "PtoVta": punto_venta,
+                "CbteTipo": tipo_cbte,
+            },
+            "FeDetReq": {
+                "FECAEDetRequest": [{
+                    "Concepto": 1,
+                    "DocTipo": 99,
+                    "DocNro": 0,
+                    "CbteDesde": ultimo_nro + 1,
+                    "CbteHasta": ultimo_nro + 1,
+                    "CbteFch": fecha,
+                    "ImpTotal": total,
+                    "ImpNeto": total,
+                    "ImpIVA": 0.00,
+                    "ImpTrib": 0.00,
+                    "MonId": "PES",
+                    "MonCotiz": 1.0
+                }]
+            }
         }
-    else:
-        raise Exception("Factura rechazada: " + str(resultado["Observaciones"]))
+    }
+
+    respuesta = client.service.FECAESolicitar(Auth={"Token": token, "Sign": sign, "Cuit": CUIT_EMISOR}, FeCAEReq=datos)
+
+    cae = respuesta.FeDetResp.FECAEDetResponse[0].CAE
+    vto = respuesta.FeDetResp.FECAEDetResponse[0].CAEFchVto
+
+    return {
+        "cae": cae,
+        "vto_cae": vto,
+        "nro_comprobante": ultimo_nro + 1,
+        "fecha": fecha,
+        "total": total,
+        "forma_pago": forma_pago,
+        "productos": productos
+    }

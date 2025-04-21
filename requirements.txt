@@ -1,4 +1,4 @@
-fastapi==0.115.2
-uvicorn==0.34.0
-pydantic==2.11.3
-git+https://github.com/reingart/pyafipws.git@master#egg=afipws
+fastapi
+uvicorn
+zeep
+lxml
