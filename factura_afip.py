@@ -85,8 +85,30 @@ def obtener_token_y_sign():
     client = Client(wsdl=WSDL_WSAA)
     response = client.service.loginCms(cms_base64)
 
-    token_xml = etree.fromstring(response.encode("utf-8"))
-    token = token_xml.findtext(".//token")
-    sign = token_xml.findtext(".//sign")
+    token_xml = etree.fromstring(response.encode())
+    token = token_xml.findtext("//token")
+    sign = token_xml.findtext("//sign")
 
     return token, sign
+
+# ================================
+# 6. FUNCIÓN PARA EMITIR FACTURAS
+# ================================
+def emitir_factura(productos, total, forma_pago):
+    try:
+        token, sign = obtener_token_y_sign()
+        # Aquí en el futuro se llamará al WSFEv1 con ese token y sign
+        # Por ahora devolvemos respuesta simulada para probar backend
+
+        return {
+            "cae": "12345678901234",
+            "vto_cae": "20250430",
+            "nro_comprobante": 1,
+            "fecha": datetime.datetime.now().strftime("%Y%m%d"),
+            "total": total,
+            "forma_pago": forma_pago,
+            "productos": productos
+        }
+
+    except Exception as e:
+        raise Exception(f"Error en emitir_factura: {str(e)}")
