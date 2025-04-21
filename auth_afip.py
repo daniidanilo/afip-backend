@@ -56,6 +56,12 @@ SERVICE = "wsfe"
 # 4. CREACIÓN DEL XML DEL TICKET
 # =============================
 
+import uuid
+from datetime import datetime, timedelta, timezone
+from lxml import etree  # Asegúrate de tener instalada esta librería
+
+SERVICE = "tu_servicio"  # Reemplaza con tu valor de servicio
+
 def crear_login_ticket_request(filename="loginTicketRequest.xml"):
     unique_id = str(uuid.uuid4().int)[:10]
 
@@ -86,7 +92,6 @@ def crear_login_ticket_request(filename="loginTicketRequest.xml"):
 if __name__ == "__main__":
     filename = crear_login_ticket_request()
     print(f"Archivo XML creado: {filename}")
-
 
 
 # =============================
