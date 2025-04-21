@@ -1,2 +1,4 @@
-fastapi
-uvicorn
+fastapi==0.115.2
+uvicorn==0.34.0
+pydantic==2.11.3
+afipws==1.4.3
