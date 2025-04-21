@@ -54,10 +54,11 @@ SERVICE = "wsfe"
 # =============================
 # 4. CREACIÓN DEL XML DEL TICKET
 # =============================
+ARG_TIMEZONE = timezone(timedelta(hours=-3))
+
 def crear_login_ticket_request(filename="loginTicketRequest.xml"):
     unique_id = str(uuid.uuid4().int)[:10]
-    now = datetime.now() - timedelta(hours=3)  # 👈 AHORA CORRECTO (ARG)
-
+    now = datetime.now(ARG_TIMEZONE)  # HORA DE ARGENTINA
     generation_time = (now - timedelta(minutes=10)).strftime("%Y-%m-%dT%H:%M:%S")
     expiration_time = (now + timedelta(minutes=10)).strftime("%Y-%m-%dT%H:%M:%S")
 
@@ -71,6 +72,7 @@ def crear_login_ticket_request(filename="loginTicketRequest.xml"):
     tree = etree.ElementTree(root)
     tree.write(filename, xml_declaration=True, encoding="UTF-8", pretty_print=True)
     return filename
+
 
 # =============================
 # 5. FIRMA DEL XML CON OPENSSL
