@@ -7,6 +7,12 @@ import logging
 from lxml import etree
 from zeep import Client
 
+# Configura el logging para que Render lo muestre
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s [%(levelname)s] %(message)s"
+)
+
 # =======================
 # 1. GUARDAR CERTIFICADOS
 # =======================
