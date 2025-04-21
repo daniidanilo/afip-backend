@@ -1,79 +1,92 @@
+import base64
+import datetime
+import uuid
+import subprocess
 import os
-from datetime import datetime
+from lxml import etree
 from zeep import Client
-from auth_afip import obtener_token_y_sign
 
-# Configuración
-CUIT_EMISOR = "20352305368"  # Reemplazar por tu CUIT
-WSDL_WSFE = "https://wswhomo.afip.gov.ar/wsfev1/service.asmx?WSDL"
+# =======================
+# 1. GUARDAR CERTIFICADOS
+# =======================
+def guardar_certificados():
+    cert_b64 = os.getenv("AFIP_CERT_B64")
+    key_b64 = os.getenv("AFIP_KEY_B64")
 
-def emitir_factura(productos: list, total: float, forma_pago: str):
-    # Obtener Token y Sign desde WSAA
-    token, sign = obtener_token_y_sign()
+    if not cert_b64 or not key_b64:
+        raise Exception("Certificados no encontrados en variables de entorno.")
 
-    # Inicializar cliente WSFE
-    client = Client(wsdl=WSDL_WSFE)
-    service = client.service
-    auth = {
-        "Token": token,
-        "Sign": sign,
-        "Cuit": int(CUIT_EMISOR)
-    }
+    os.makedirs("afip_cert", exist_ok=True)
 
-    # Obtener último comprobante autorizado
-    punto_venta = 1
-    tipo_cbte = 11  # Factura C
-    ultimo_cbte = service.FECompUltimoAutorizado(auth, punto_venta, tipo_cbte).CbteNro
-    nro_cbte = ultimo_cbte + 1
+    with open("afip_cert/afip.crt", "wb") as cert_file:
+        cert_file.write(base64.b64decode(cert_b64))
 
-    # Crear el cuerpo del comprobante
-    fecha = datetime.now().strftime("%Y%m%d")
-    detalle = {
-        "Concepto": 1,
-        "DocTipo": 99,
-        "DocNro": 0,
-        "CbteDesde": nro_cbte,
-        "CbteHasta": nro_cbte,
-        "CbteFch": fecha,
-        "ImpTotal": total,
-        "ImpTotConc": 0.00,
-        "ImpNeto": total,
-        "ImpIVA": 0.00,
-        "ImpTrib": 0.00,
-        "MonId": "PES",
-        "MonCotiz": 1.0
-    }
+    with open("afip_cert/afip.key", "wb") as key_file:
+        key_file.write(base64.b64decode(key_b64))
 
-    req = {
-        "FeCAEReq": {
-            "FeCabReq": {
-                "CantReg": 1,
-                "PtoVta": punto_venta,
-                "CbteTipo": tipo_cbte
-            },
-            "FeDetReq": {
-                "FECAEDetRequest": [detalle]
-            }
-        }
-    }
+# Ejecutamos esto al importar el archivo
+guardar_certificados()
 
-    # Enviar solicitud
-    respuesta = service.FECAESolicitar(auth, **req)
+# ======================
+# 2. CONFIGURACIÓN AFIP
+# ======================
+CERT_PATH = "afip_cert/afip.crt"
+KEY_PATH = "afip_cert/afip.key"
+WSDL_WSAA = "https://wsaahomo.afip.gov.ar/ws/services/LoginCms?WSDL"
+SERVICE = "wsfe"
 
-    # Procesar respuesta
-    resultado = respuesta.FeDetResp.FECAEDetResponse[0]
+# ============================
+# 3. CREACIÓN DEL TICKET XML
+# ============================
+def crear_login_ticket_request(filename="loginTicketRequest.xml"):
+    unique_id = str(uuid.uuid4().int)[:10]
+    now = datetime.datetime.now(datetime.timezone.utc)
+    generation_time = (now - datetime.timedelta(minutes=10)).strftime("%Y-%m-%dT%H:%M:%S")
+    expiration_time = (now + datetime.timedelta(minutes=10)).strftime("%Y-%m-%dT%H:%M:%S")
 
-    if resultado.Resultado == "A":
-        return {
-            "cae": resultado.CAE,
-            "vto_cae": resultado.CAEFchVto,
-            "nro_comprobante": nro_cbte,
-            "fecha": fecha,
-            "total": total,
-            "forma_pago": forma_pago,
-            "productos": productos
-        }
-    else:
-        obs = resultado.Observaciones.Obs if resultado.Observaciones else []
-        errores = [o.Msg for o in obs]
-        raise Exception("Factura rechazada: " + ", ".join(errores))
+    root = etree.Element("loginTicketRequest", version="1.0")
+    header = etree.SubElement(root, "header")
+    etree.SubElement(header, "uniqueId").text = unique_id
+    etree.SubElement(header, "generationTime").text = generation_time
+    etree.SubElement(header, "expirationTime").text = expiration_time
+    etree.SubElement(root, "service").text = SERVICE
+
+    tree = etree.ElementTree(root)
+    tree.write(filename, xml_declaration=True, encoding="UTF-8", pretty_print=True)
+    return filename
+
+# =============================
+# 4. FIRMA DEL XML CON OPENSSL
+# =============================
+def firmar_ticket_con_openssl(xml_path, cms_path):
+    subprocess.run([
+        "openssl", "smime", "-sign",
+        "-signer", CERT_PATH,
+        "-inkey", KEY_PATH,
+        "-in", xml_path,
+        "-out", cms_path,
+        "-outform", "DER",
+        "-nodetach"
+    ], check=True)
+
+# ==================================
+# 5. CONSUMO DEL SERVICIO WSAA AFIP
+# ==================================
+def obtener_token_y_sign():
+    xml_path = "loginTicketRequest.xml"
+    cms_path = "loginTicketRequest.cms"
+
+    crear_login_ticket_request(xml_path)
+    firmar_ticket_con_openssl(xml_path, cms_path)
+
+    with open(cms_path, "rb") as f:
+        cms_base64 = base64.b64encode(f.read()).decode()
+
+    client = Client(wsdl=WSDL_WSAA)
+    response = client.service.loginCms(cms_base64)
+
+    token_xml = etree.fromstring(response.encode("utf-8"))
+    token = token_xml.findtext(".//token")
+    sign = token_xml.findtext(".//sign")
+
+    return token, sign
