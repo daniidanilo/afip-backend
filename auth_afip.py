@@ -1,30 +1,13 @@
 import base64
-import datetime
 import uuid
 import subprocess
 import os
 from lxml import etree
 from zeep import Client
 from datetime import datetime, timezone, timedelta
-from lxml import etree  # Asegúrate de tener instalada esta librería
-
-# ==========================
-# 1. FUNCIONES DE DIAGNÓSTICO
-# ==========================
-def obtener_tiempos_afip():
-    # ⚠️ Ajustamos 3 horas hacia atrás (hora argentina)
-    now = datetime.now(timezone.utc) - timedelta(hours=3)
-    generation_time = (now - timedelta(minutes=10)).strftime("%Y-%m-%dT%H:%M:%S")
-    expiration_time = (now + timedelta(minutes=10)).strftime("%Y-%m-%dT%H:%M:%S")
-    return {
-        "generationTime": generation_time,
-        "expirationTime": expiration_time,
-        "serverTimeUTC": (now + timedelta(hours=3)).strftime("%Y-%m-%dT%H:%M:%S"),
-        "serverTimeLocal": now.strftime("%Y-%m-%d %H:%M:%S")
-    }
 
 # =======================
-# 2. GUARDAR CERTIFICADOS
+# 1. GUARDAR CERTIFICADOS
 # =======================
 def guardar_certificados():
     cert_b64 = os.getenv("AFIP_CERT_B64")
@@ -44,27 +27,22 @@ def guardar_certificados():
 # Ejecutamos al importar
 guardar_certificados()
 
-# ======================
-# 3. CONFIGURACIÓN AFIP
-# ======================
+# ===================
+# 2. CONFIGURACIÓN
+# ===================
 CERT_PATH = "afip_cert/afip.crt"
 KEY_PATH = "afip_cert/afip.key"
 WSDL_WSAA = "https://wsaahomo.afip.gov.ar/ws/services/LoginCms?WSDL"
 SERVICE = "wsfe"
 
-# =============================
-# 4. CREACIÓN DEL XML DEL TICKET
-# =============================
-
+# ============================
+# 3. CREACIÓN DEL LOGIN TICKET
+# ============================
 def crear_login_ticket_request(filename="loginTicketRequest.xml"):
     unique_id = str(uuid.uuid4().int)[:10]
 
-    # Hora actual UTC
-    now_utc = datetime.now(timezone.utc)
-
-    # Hora ajustada a UTC-3, sin información de zona horaria (AFIP requiere esto)
-    now_arg = (now_utc - timedelta(hours=3)).replace(tzinfo=None)
-
+    # Ajustar hora a UTC-3 sin zona horaria explícita (AFIP espera eso)
+    now_arg = (datetime.now(timezone.utc) - timedelta(hours=3)).replace(tzinfo=None)
     generation_time = (now_arg - timedelta(minutes=10)).strftime("%Y-%m-%dT%H:%M:%S")
     expiration_time = (now_arg + timedelta(minutes=10)).strftime("%Y-%m-%dT%H:%M:%S")
 
@@ -79,10 +57,9 @@ def crear_login_ticket_request(filename="loginTicketRequest.xml"):
     tree.write(filename, xml_declaration=True, encoding="UTF-8", pretty_print=True)
     return filename
 
-
-# =============================
-# 5. FIRMA DEL XML CON OPENSSL
-# =============================
+# ============================
+# 4. FIRMAR CON OPENSSL
+# ============================
 def firmar_ticket_con_openssl(xml_path, cms_path):
     subprocess.run([
         "openssl", "smime", "-sign",
@@ -94,9 +71,9 @@ def firmar_ticket_con_openssl(xml_path, cms_path):
         "-nodetach"
     ], check=True)
 
-# ==================================
-# 6. CONSUMO DEL SERVICIO WSAA AFIP
-# ==================================
+# ============================
+# 5. WSAA → TOKEN Y SIGN
+# ============================
 def obtener_token_y_sign():
     xml_path = "loginTicketRequest.xml"
     cms_path = "loginTicketRequest.cms"
@@ -116,22 +93,16 @@ def obtener_token_y_sign():
 
     return token, sign
 
-# =================================
-# 7. FUNCIÓN DE FACTURACIÓN SIMULADA
-# =================================
-def emitir_factura(productos, total, forma_pago):
-    try:
-        token, sign = obtener_token_y_sign()
-
-        return {
-            "cae": "12345678901234",
-            "vto_cae": "20250430",
-            "nro_comprobante": 1,
-            "fecha": datetime.now().strftime("%Y%m%d"),
-            "total": total,
-            "forma_pago": forma_pago,
-            "productos": productos
-        }
-
-    except Exception as e:
-        raise Exception(f"Error en emitir_factura: {str(e)}")
+# =============================
+# DIAGNÓSTICO OPCIONAL
+# =============================
+def obtener_tiempos_afip():
+    now = datetime.now(timezone.utc) - timedelta(hours=3)
+    generation_time = (now - timedelta(minutes=10)).strftime("%Y-%m-%dT%H:%M:%S")
+    expiration_time = (now + timedelta(minutes=10)).strftime("%Y-%m-%dT%H:%M:%S")
+    return {
+        "generationTime": generation_time,
+        "expirationTime": expiration_time,
+        "serverTimeUTC": (now + timedelta(hours=3)).strftime("%Y-%m-%dT%H:%M:%S"),
+        "serverTimeLocal": now.strftime("%Y-%m-%d %H:%M:%S")
+    }
