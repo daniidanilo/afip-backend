@@ -56,7 +56,7 @@ SERVICE = "wsfe"
 # =============================
 def crear_login_ticket_request(filename="loginTicketRequest.xml"):
     unique_id = str(uuid.uuid4().int)[:10]
-    now = datetime.now(timezone.utc) - timedelta(hours=3)  # ✅ Hora Argentina
+    now = datetime.now() - timedelta(hours=3)  # 👈 AHORA CORRECTO (ARG)
 
     generation_time = (now - timedelta(minutes=10)).strftime("%Y-%m-%dT%H:%M:%S")
     expiration_time = (now + timedelta(minutes=10)).strftime("%Y-%m-%dT%H:%M:%S")
