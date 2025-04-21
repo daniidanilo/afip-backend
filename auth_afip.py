@@ -40,12 +40,19 @@ SERVICE = "wsfe"
 # ============================
 def crear_login_ticket_request(filename="loginTicketRequest.xml"):
     unique_id = str(uuid.uuid4().int)[:10]
+    from datetime import timezone
 
-    now = datetime.datetime.utcnow()
+    now = datetime.datetime.now(timezone.utc)
+    generation_time = (now - datetime.timedelta(minutes=10)).strftime("%Y-%m-%dT%H:%M:%S")
+    expiration_time = (now + datetime.timedelta(minutes=10)).strftime("%Y-%m-%dT%H:%M:%S")
 
-    # Ajustamos el tiempo para compensar desfase del servidor
-    generation_time = (now - datetime.timedelta(minutes=15)).strftime("%Y-%m-%dT%H:%M:%S")
-    expiration_time = (now + datetime.timedelta(minutes=5)).strftime("%Y-%m-%dT%H:%M:%S")
+    # Log horario
+    print("======= LOG DE HORA PARA DEBUG =======")
+    print(f"Hora actual UTC: {now.isoformat()}")
+    print(f"Hora actual Argentina: {(now - datetime.timedelta(hours=3)).isoformat()}")
+    print(f"generationTime: {generation_time}")
+    print(f"expirationTime: {expiration_time}")
+    print("======================================")
 
     root = etree.Element("loginTicketRequest", version="1.0")
     header = etree.SubElement(root, "header")
