@@ -15,10 +15,11 @@ WSDL_WSAA = "https://wsaahomo.afip.gov.ar/ws/services/LoginCms?WSDL"
 WSDL_WSFE = "https://wswhomo.afip.gov.ar/wsfev1/service.asmx?WSDL"
 CUIT_EMISOR = "20352305368"  # Reemplazá con tu CUIT
 SERVICE = "wsfe"
+TA_CACHE_PATH = "afip_cert/token_cache.xml"
 
-# ==============================
-# 2. AUTENTICACIÓN (WSAA)
-# ==============================
+# ==========================
+# 2. FUNCIÓN PARA OBTENER TA
+# ==========================
 def crear_login_ticket_request(filename="loginTicketRequest.xml"):
     unique_id = str(uuid.uuid4().int)[:10]
     now = datetime.now(timezone.utc) - timedelta(hours=3)
@@ -48,6 +49,20 @@ def firmar_ticket(xml_path, cms_path):
     ], check=True)
 
 def obtener_token_y_sign():
+    # Si el token está cacheado y no vencido, lo usamos
+    if os.path.exists(TA_CACHE_PATH):
+        try:
+            with open(TA_CACHE_PATH, "r", encoding="utf-8") as f:
+                ta_xml = etree.parse(f)
+                expiration = ta_xml.findtext(".//expirationTime")
+                if expiration and datetime.strptime(expiration, "%Y-%m-%dT%H:%M:%S") > datetime.now():
+                    token = ta_xml.findtext(".//token")
+                    sign = ta_xml.findtext(".//sign")
+                    return token, sign
+        except Exception:
+            pass  # Si falla el parseo o lo que sea, seguimos y pedimos nuevo
+
+    # Si no hay token válido, lo generamos
     xml_path = "loginTicketRequest.xml"
     cms_path = "loginTicketRequest.cms"
 
@@ -59,24 +74,28 @@ def obtener_token_y_sign():
 
     client = Client(wsdl=WSDL_WSAA)
     response = client.service.loginCms(cms_base64)
+
+    with open(TA_CACHE_PATH, "w", encoding="utf-8") as f:
+        f.write(response)  # Cacheamos el XML entero
+
     token_xml = etree.fromstring(response.encode())
-    token = token_xml.findtext("//token")
-    sign = token_xml.findtext("//sign")
+    token = token_xml.findtext(".//token")
+    sign = token_xml.findtext(".//sign")
 
     return token, sign
 
-# ============================================
-# 3. EMISIÓN DE FACTURA C CON WSFEv1 (CAE real)
-# ============================================
+# ========================================
+# 3. FUNCIÓN PARA EMITIR FACTURA TIPO C
+# ========================================
 def emitir_factura(productos, total, forma_pago):
     try:
         token, sign = obtener_token_y_sign()
         client = Client(wsdl=WSDL_WSFE)
         service = client.service
 
-        # Obtener último número autorizado
         punto_venta = 1
         tipo_cbte = 11  # Factura C
+
         ultimo = service.FECompUltimoAutorizado(
             Auth={"Token": token, "Sign": sign, "Cuit": CUIT_EMISOR},
             PtoVta=punto_venta,
@@ -86,7 +105,6 @@ def emitir_factura(productos, total, forma_pago):
         nuevo_nro = ultimo.CbteNro + 1
         hoy = datetime.now().strftime("%Y%m%d")
 
-        # Emitir factura
         data = {
             "Auth": {"Token": token, "Sign": sign, "Cuit": CUIT_EMISOR},
             "FeCAEReq": {
@@ -96,7 +114,7 @@ def emitir_factura(productos, total, forma_pago):
                     "CbteTipo": tipo_cbte
                 },
                 "FeDetReq": {
-                    "FECAEDetRequest": [{
+                    "FECAEDetRequest": [ {
                         "Concepto": 1,
                         "DocTipo": 99,
                         "DocNro": 0,

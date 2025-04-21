@@ -1,50 +1,35 @@
 import base64
 import uuid
-import subprocess
 import os
+import subprocess
+from datetime import datetime, timedelta, timezone
 from lxml import etree
 from zeep import Client
-from datetime import datetime, timezone, timedelta
 
 # =======================
-# 1. GUARDAR CERTIFICADOS
+# CONFIGURACIÓN GENERAL
 # =======================
-def guardar_certificados():
-    cert_b64 = os.getenv("AFIP_CERT_B64")
-    key_b64 = os.getenv("AFIP_KEY_B64")
-
-    if not cert_b64 or not key_b64:
-        raise Exception("Certificados no encontrados en variables de entorno.")
-
-    os.makedirs("afip_cert", exist_ok=True)
-
-    with open("afip_cert/afip.crt", "wb") as cert_file:
-        cert_file.write(base64.b64decode(cert_b64))
-
-    with open("afip_cert/afip.key", "wb") as key_file:
-        key_file.write(base64.b64decode(key_b64))
-
-# Ejecutamos al importar
-guardar_certificados()
-
-# ===================
-# 2. CONFIGURACIÓN
-# ===================
 CERT_PATH = "afip_cert/afip.crt"
 KEY_PATH = "afip_cert/afip.key"
 WSDL_WSAA = "https://wsaahomo.afip.gov.ar/ws/services/LoginCms?WSDL"
 SERVICE = "wsfe"
+TA_CACHE_PATH = "ta.xml"
+
+# =======================
+# UTILIDADES DE TIEMPO
+# =======================
+def obtener_tiempos_afip():
+    now = datetime.now(timezone.utc) - timedelta(hours=3)  # Hora Argentina sin zona horaria
+    generation_time = (now - timedelta(minutes=10)).strftime("%Y-%m-%dT%H:%M:%S")
+    expiration_time = (now + timedelta(minutes=10)).strftime("%Y-%m-%dT%H:%M:%S")
+    return generation_time, expiration_time
 
 # ============================
-# 3. CREACIÓN DEL LOGIN TICKET
+# CREACIÓN Y FIRMA DEL XML CMS
 # ============================
 def crear_login_ticket_request(filename="loginTicketRequest.xml"):
     unique_id = str(uuid.uuid4().int)[:10]
-
-    # Ajustar hora a UTC-3 sin zona horaria explícita (AFIP espera eso)
-    now_arg = (datetime.now(timezone.utc) - timedelta(hours=3)).replace(tzinfo=None)
-    generation_time = (now_arg - timedelta(minutes=10)).strftime("%Y-%m-%dT%H:%M:%S")
-    expiration_time = (now_arg + timedelta(minutes=10)).strftime("%Y-%m-%dT%H:%M:%S")
+    generation_time, expiration_time = obtener_tiempos_afip()
 
     root = etree.Element("loginTicketRequest", version="1.0")
     header = etree.SubElement(root, "header")
@@ -57,9 +42,6 @@ def crear_login_ticket_request(filename="loginTicketRequest.xml"):
     tree.write(filename, xml_declaration=True, encoding="UTF-8", pretty_print=True)
     return filename
 
-# ============================
-# 4. FIRMAR CON OPENSSL
-# ============================
 def firmar_ticket_con_openssl(xml_path, cms_path):
     subprocess.run([
         "openssl", "smime", "-sign",
@@ -72,9 +54,36 @@ def firmar_ticket_con_openssl(xml_path, cms_path):
     ], check=True)
 
 # ============================
-# 5. WSAA → TOKEN Y SIGN
+# CACHE DE TOKEN Y SIGN
+# ============================
+def ta_valido():
+    if not os.path.exists(TA_CACHE_PATH):
+        return False
+    try:
+        tree = etree.parse(TA_CACHE_PATH)
+        expiration_time = tree.findtext("//expirationTime")
+        expiration = datetime.strptime(expiration_time, "%Y-%m-%dT%H:%M:%S")
+        return expiration > datetime.now()
+    except Exception:
+        return False
+
+def guardar_ta(xml_str):
+    with open(TA_CACHE_PATH, "w", encoding="utf-8") as f:
+        f.write(xml_str)
+
+def leer_ta():
+    tree = etree.parse(TA_CACHE_PATH)
+    token = tree.findtext("//token")
+    sign = tree.findtext("//sign")
+    return token, sign
+
+# ============================
+# OBTENER TOKEN Y SIGN
 # ============================
 def obtener_token_y_sign():
+    if ta_valido():
+        return leer_ta()
+
     xml_path = "loginTicketRequest.xml"
     cms_path = "loginTicketRequest.cms"
 
@@ -87,22 +96,10 @@ def obtener_token_y_sign():
     client = Client(wsdl=WSDL_WSAA)
     response = client.service.loginCms(cms_base64)
 
+    guardar_ta(response)
+
     token_xml = etree.fromstring(response.encode())
     token = token_xml.findtext("//token")
     sign = token_xml.findtext("//sign")
 
     return token, sign
-
-# =============================
-# DIAGNÓSTICO OPCIONAL
-# =============================
-def obtener_tiempos_afip():
-    now = datetime.now(timezone.utc) - timedelta(hours=3)
-    generation_time = (now - timedelta(minutes=10)).strftime("%Y-%m-%dT%H:%M:%S")
-    expiration_time = (now + timedelta(minutes=10)).strftime("%Y-%m-%dT%H:%M:%S")
-    return {
-        "generationTime": generation_time,
-        "expirationTime": expiration_time,
-        "serverTimeUTC": (now + timedelta(hours=3)).strftime("%Y-%m-%dT%H:%M:%S"),
-        "serverTimeLocal": now.strftime("%Y-%m-%d %H:%M:%S")
-    }
