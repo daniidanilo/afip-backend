@@ -6,6 +6,7 @@ import os
 from lxml import etree
 from zeep import Client
 from datetime import datetime, timezone, timedelta
+from lxml import etree  # Asegúrate de tener instalada esta librería
 
 # ==========================
 # 1. FUNCIONES DE DIAGNÓSTICO
@@ -54,13 +55,14 @@ SERVICE = "wsfe"
 # =============================
 # 4. CREACIÓN DEL XML DEL TICKET
 # =============================
-ARG_TIMEZONE = timezone(timedelta(hours=-3))
 
 def crear_login_ticket_request(filename="loginTicketRequest.xml"):
     unique_id = str(uuid.uuid4().int)[:10]
-    now = datetime.now(ARG_TIMEZONE)  # HORA DE ARGENTINA
-    generation_time = (now - timedelta(minutes=10)).strftime("%Y-%m-%dT%H:%M:%S")
-    expiration_time = (now + timedelta(minutes=10)).strftime("%Y-%m-%dT%H:%M:%S")
+
+    # AFIP espera la hora local de Argentina (UTC-3)
+    now_utc_minus_3 = datetime.utcnow() - timedelta(hours=3)
+    generation_time = (now_utc_minus_3 - timedelta(minutes=10)).strftime("%Y-%m-%dT%H:%M:%S")
+    expiration_time = (now_utc_minus_3 + timedelta(minutes=10)).strftime("%Y-%m-%dT%H:%M:%S")
 
     root = etree.Element("loginTicketRequest", version="1.0")
     header = etree.SubElement(root, "header")
