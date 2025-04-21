@@ -42,8 +42,9 @@ def crear_login_ticket_request(filename="loginTicketRequest.xml"):
     argentina_tz = datetime.timezone(datetime.timedelta(hours=-3))
     now = datetime.datetime.now(argentina_tz)
 
-    generation_time = (now - datetime.timedelta(minutes=10)).strftime("%Y-%m-%dT%H:%M:%S")
-    expiration_time = (now + datetime.timedelta(minutes=10)).strftime("%Y-%m-%dT%H:%M:%S")
+    generation_time = (now - datetime.timedelta(minutes=20)).strftime("%Y-%m-%dT%H:%M:%S")
+    expiration_time = (now + datetime.timedelta(hours=1)).strftime("%Y-%m-%dT%H:%M:%S")
+
     unique_id = str(uuid.uuid4().int)[:10]
 
     root = etree.Element("loginTicketRequest", version="1.0")
