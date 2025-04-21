@@ -5,6 +5,7 @@ import subprocess
 import os
 from lxml import etree
 from zeep import Client
+import pytz
 
 # =======================
 # 1. GUARDAR CERTIFICADOS
@@ -24,7 +25,7 @@ def guardar_certificados():
     with open("afip_cert/afip.key", "wb") as key_file:
         key_file.write(base64.b64decode(key_b64))
 
-# Ejecutamos esto al importar el archivo
+# Ejecutamos al importar
 guardar_certificados()
 
 # ======================
@@ -40,7 +41,11 @@ SERVICE = "wsfe"
 # ============================
 def crear_login_ticket_request(filename="loginTicketRequest.xml"):
     unique_id = str(uuid.uuid4().int)[:10]
-    now = datetime.datetime.now(datetime.timezone.utc)
+
+    # Hora de Buenos Aires
+    tz_ar = pytz.timezone("America/Argentina/Buenos_Aires")
+    now = datetime.datetime.now(tz=tz_ar)
+
     generation_time = (now - datetime.timedelta(minutes=10)).strftime("%Y-%m-%dT%H:%M:%S")
     expiration_time = (now + datetime.timedelta(minutes=10)).strftime("%Y-%m-%dT%H:%M:%S")
 
@@ -86,7 +91,7 @@ def obtener_token_y_sign():
     response = client.service.loginCms(cms_base64)
 
     token_xml = etree.fromstring(response.encode())
-    token = token_xml.findtext(".//token")
-    sign = token_xml.findtext(".//sign")
+    token = token_xml.findtext("//token")
+    sign = token_xml.findtext("//sign")
 
     return token, sign
