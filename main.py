@@ -5,7 +5,7 @@ from factura_afip import emitir_factura
 
 app = FastAPI()
 
-# Modelos de datos
+# Modelos de datos que recibimos desde la app
 class Producto(BaseModel):
     nombre: str
     precio: float
@@ -17,11 +17,12 @@ class Venta(BaseModel):
 
 @app.get("/")
 def home():
-    return {"mensaje": "Backend de AFIP activo"}
+    return {"mensaje": "Backend de AFIP activo y esperando facturas"}
 
 @app.post("/facturar")
 def facturar(venta: Venta):
     try:
+        # Convertimos productos a tuplas para pasarlos al módulo
         lista_productos = [(p.nombre, p.precio) for p in venta.productos]
 
         resultado = emitir_factura(
@@ -42,4 +43,7 @@ def facturar(venta: Venta):
         }
 
     except Exception as e:
-        return {"estado": "rechazado", "error": str(e)}
+        return {
+            "estado": "rechazado",
+            "error": str(e)
+        }
