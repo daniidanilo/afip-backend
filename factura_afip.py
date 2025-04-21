@@ -117,11 +117,8 @@ def obtener_token_y_sign():
         response = client.service.loginCms(cms_base64)
     except Exception as e:
         if "TA valido" in str(e):
-            print("[INFO] Ya existe un TA válido, usando el cache.")
-            if os.path.exists(TA_FILE):
-                return leer_ta()
-            else:
-                raise Exception("TA ya válido pero no fue encontrado localmente")
+            print("[WARN] TA válido en AFIP pero perdido localmente. Reintentando...")
+            response = client.service.loginCms(cms_base64)  # Reintento forzado
         else:
             raise
 
