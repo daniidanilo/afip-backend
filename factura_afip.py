@@ -5,6 +5,18 @@ import subprocess
 import os
 from lxml import etree
 from zeep import Client
+from datetime import datetime, timezone, timedelta
+
+def obtener_tiempos_afip():
+    now = datetime.now(timezone.utc)
+    generation_time = (now - timedelta(minutes=10)).strftime("%Y-%m-%dT%H:%M:%S")
+    expiration_time = (now + timedelta(minutes=10)).strftime("%Y-%m-%dT%H:%M:%S")
+    return {
+        "generationTime": generation_time,
+        "expirationTime": expiration_time,
+        "serverTimeUTC": now.strftime("%Y-%m-%dT%H:%M:%S"),
+        "serverTimeLocal": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    }
 
 # =======================
 # 1. GUARDAR CERTIFICADOS
