@@ -7,6 +7,26 @@ from lxml import etree
 from zeep import Client
 
 # =======================
+# 0. RECONSTRUIR CERTIFICADOS
+# =======================
+def restaurar_certificados():
+    cert_b64 = os.getenv("AFIP_CERT_B64")
+    key_b64 = os.getenv("AFIP_KEY_B64")
+
+    if not cert_b64 or not key_b64:
+        raise Exception("Certificados no encontrados en variables de entorno.")
+
+    os.makedirs("afip_cert", exist_ok=True)
+
+    with open("afip_cert/afip.crt", "wb") as f:
+        f.write(base64.b64decode(cert_b64))
+
+    with open("afip_cert/afip.key", "wb") as f:
+        f.write(base64.b64decode(key_b64))
+
+restaurar_certificados()
+
+# =======================
 # 1. CONFIGURACIÓN GLOBAL
 # =======================
 CERT_PATH = "afip_cert/afip.crt"
