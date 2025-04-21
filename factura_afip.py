@@ -112,7 +112,18 @@ def obtener_token_y_sign():
         cms_base64 = base64.b64encode(f.read()).decode()
 
     client = Client(wsdl=WSDL_WSAA)
-    response = client.service.loginCms(cms_base64)
+
+    try:
+        response = client.service.loginCms(cms_base64)
+    except Exception as e:
+        if "TA valido" in str(e):
+            print("[INFO] Ya existe un TA válido, usando el cache.")
+            if os.path.exists(TA_FILE):
+                return leer_ta()
+            else:
+                raise Exception("TA ya válido pero no fue encontrado localmente")
+        else:
+            raise
 
     guardar_ta(response)
     token_xml = etree.fromstring(response.encode())
