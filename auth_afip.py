@@ -56,27 +56,18 @@ SERVICE = "wsfe"
 # 4. CREACIÓN DEL XML DEL TICKET
 # =============================
 
-import uuid
-from datetime import datetime, timedelta, timezone
-from lxml import etree  # Asegúrate de tener instalada esta librería
-
-SERVICE = "tu_servicio"  # Reemplaza con tu valor de servicio
-
 def crear_login_ticket_request(filename="loginTicketRequest.xml"):
     unique_id = str(uuid.uuid4().int)[:10]
 
-    # Define la zona horaria de Argentina (UTC-3)
-    arg_timezone = timezone(timedelta(hours=-3))
+    # Hora actual en UTC
+    now_utc = datetime.now(timezone.utc)
 
-    # Obtiene la hora actual en UTC y la hace "aware"
-    now_utc_aware = datetime.now(timezone.utc)
+    # Ajustar a hora argentina (UTC-3)
+    now_arg = now_utc - timedelta(hours=3)
 
-    # Convierte la hora UTC aware a la zona horaria de Argentina
-    now_arg_aware = now_utc_aware.astimezone(arg_timezone)
-
-    # Calcula generationTime y expirationTime basados en la hora aware de Argentina
-    generation_time = (now_arg_aware - timedelta(minutes=10)).strftime("%Y-%m-%dT%H:%M:%S")
-    expiration_time = (now_arg_aware + timedelta(minutes=10)).strftime("%Y-%m-%dT%H:%M:%S")
+    # Generation y Expiration time en horario UTC-3
+    generation_time = (now_arg - timedelta(minutes=10)).strftime("%Y-%m-%dT%H:%M:%S")
+    expiration_time = (now_arg + timedelta(minutes=10)).strftime("%Y-%m-%dT%H:%M:%S")
 
     root = etree.Element("loginTicketRequest", version="1.0")
     header = etree.SubElement(root, "header")
