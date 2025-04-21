@@ -8,13 +8,8 @@ from lxml import etree
 from zeep import Client
 
 # =======================
-# COMENTARIO: Este archivo sincroniza la hora con el servidor de AFIP
-# para evitar el error: "generationTime posee formato o dato inválido"
-# que ocurre cuando el servidor Render tiene un desfase horario.
+# 1. GUARDAR CERTIFICADOS
 # =======================
-
-# 1. GUARDAR CERTIFICADOS DESDE VARIABLES DE ENTORNO
-
 def guardar_certificados():
     cert_b64 = os.getenv("AFIP_CERT_B64")
     key_b64 = os.getenv("AFIP_KEY_B64")
@@ -33,33 +28,36 @@ def guardar_certificados():
 # Ejecutamos esto al importar el archivo
 guardar_certificados()
 
-# 2. CONFIGURACIÓN DE RUTAS Y DATOS
+# ======================
+# 2. CONFIGURACIÓN AFIP
+# ======================
 CERT_PATH = "afip_cert/afip.crt"
 KEY_PATH = "afip_cert/afip.key"
 WSDL_WSAA = "https://wsaahomo.afip.gov.ar/ws/services/LoginCms?WSDL"
 SERVICE = "wsfe"
 
-# 3. OBTENER HORA DESDE AFIP
-
+# ====================================
+# 3. OBTENER HORA OFICIAL DE LA AFIP
+# ====================================
 def obtener_hora_afip():
     try:
-        r = requests.get("https://time.afip.gov.ar")
-        if r.status_code == 200:
-            hora_afip = r.json().get("serverTime")
-            return datetime.datetime.fromisoformat(hora_afip)
-        else:
-            raise Exception("No se pudo obtener la hora de AFIP")
+        r = requests.get("https://time.afip.gov.ar", timeout=5)
+        date_header = r.headers.get("Date")
+        if not date_header:
+            raise Exception("No se pudo obtener la cabecera Date de AFIP")
+        return datetime.datetime.strptime(date_header, "%a, %d %b %Y %H:%M:%S GMT")
     except Exception as e:
-        raise Exception(f"Error al sincronizar con AFIP: {e}")
+        raise Exception(f"Error al obtener la hora de AFIP: {e}")
 
-# 4. CREAR TICKET LOGIN XML
-
+# ============================
+# 4. CREACIÓN DEL TICKET XML
+# ============================
 def crear_login_ticket_request(filename="loginTicketRequest.xml"):
     unique_id = str(uuid.uuid4().int)[:10]
+    ahora_afip = obtener_hora_afip()
 
-    now = obtener_hora_afip()
-    generation_time = (now - datetime.timedelta(minutes=10)).strftime("%Y-%m-%dT%H:%M:%S")
-    expiration_time = (now + datetime.timedelta(minutes=10)).strftime("%Y-%m-%dT%H:%M:%S")
+    generation_time = (ahora_afip - datetime.timedelta(minutes=5)).strftime("%Y-%m-%dT%H:%M:%S")
+    expiration_time = (ahora_afip + datetime.timedelta(minutes=5)).strftime("%Y-%m-%dT%H:%M:%S")
 
     root = etree.Element("loginTicketRequest", version="1.0")
     header = etree.SubElement(root, "header")
@@ -72,8 +70,9 @@ def crear_login_ticket_request(filename="loginTicketRequest.xml"):
     tree.write(filename, xml_declaration=True, encoding="UTF-8", pretty_print=True)
     return filename
 
-# 5. FIRMAR XML CON OPENSSL
-
+# =============================
+# 5. FIRMA DEL XML CON OPENSSL
+# =============================
 def firmar_ticket_con_openssl(xml_path, cms_path):
     subprocess.run([
         "openssl", "smime", "-sign",
@@ -85,8 +84,9 @@ def firmar_ticket_con_openssl(xml_path, cms_path):
         "-nodetach"
     ], check=True)
 
-# 6. OBTENER TOKEN Y SIGN
-
+# ==================================
+# 6. CONSUMO DEL SERVICIO WSAA AFIP
+# ==================================
 def obtener_token_y_sign():
     xml_path = "loginTicketRequest.xml"
     cms_path = "loginTicketRequest.cms"
