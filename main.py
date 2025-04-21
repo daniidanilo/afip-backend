@@ -2,12 +2,12 @@ from fastapi import FastAPI
 from pydantic import BaseModel
 from typing import List
 from factura_afip import emitir_factura
-from auth_afip import obtener_tiempos_afip  
 
 app = FastAPI()
 
-# ==== Modelos de entrada ====
-
+# ============================
+# MODELOS DE DATOS RECIBIDOS
+# ============================
 class Producto(BaseModel):
     nombre: str
     precio: float
@@ -17,11 +17,9 @@ class Venta(BaseModel):
     total: float
     forma_pago: str
 
-# ==== Endpoint principal ====
-
 @app.get("/")
 def home():
-    return {"mensaje": "Backend de AFIP activo"}
+    return {"mensaje": "Backend de AFIP activo y listo para facturar"}
 
 @app.post("/facturar")
 def facturar(venta: Venta):
@@ -36,14 +34,17 @@ def facturar(venta: Venta):
 
         return {
             "estado": "aprobado",
-            **resultado
+            "cae": resultado["cae"],
+            "vto_cae": resultado["vto_cae"],
+            "numero": resultado["nro_comprobante"],
+            "fecha": resultado["fecha"],
+            "total": resultado["total"],
+            "forma_pago": resultado["forma_pago"],
+            "productos": resultado["productos"]
         }
 
     except Exception as e:
-        # Agregamos log de tiempos para diagnosticar error con AFIP
-        tiempos = obtener_tiempos_afip()
         return {
             "estado": "rechazado",
-            "error": f"Error en emitir_factura: {str(e)}",
-            **tiempos
+            "error": f"Error en emitir_factura: {str(e)}"
         }
