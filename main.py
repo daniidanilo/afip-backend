@@ -2,7 +2,7 @@ from fastapi import FastAPI
 from pydantic import BaseModel
 from typing import List
 from factura_afip import emitir_factura
-from factura_afip import obtener_tiempos_afip  # Para diagnóstico opcional
+from auth_afip import obtener_tiempos_afip  
 
 app = FastAPI()
 
