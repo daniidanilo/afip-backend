@@ -13,6 +13,9 @@ def restaurar_certificados():
     cert_b64 = os.getenv("AFIP_CERT_B64")
     key_b64 = os.getenv("AFIP_KEY_B64")
 
+    print(f"[DEBUG] Certificado presente: {bool(cert_b64)}")
+    print(f"[DEBUG] Key presente: {bool(key_b64)}")
+
     if not cert_b64 or not key_b64:
         raise Exception("Certificados no encontrados en variables de entorno.")
 
@@ -35,12 +38,12 @@ WSDL_WSAA = "https://wsaahomo.afip.gov.ar/ws/services/LoginCms?WSDL"
 WSDL_WSFE = "https://wswhomo.afip.gov.ar/wsfev1/service.asmx?WSDL"
 CUIT_EMISOR = "20352305368"  # Reemplazá con tu CUIT
 SERVICE = "wsfe"
-TA_FILE = "token_afip.xml"
+TA_FILE = "/tmp/token_afip.xml"
 
 # ==============================
 # 2. AUTENTICACIÓN (WSAA + CACHE)
 # ==============================
-def crear_login_ticket_request(filename="loginTicketRequest.xml"):
+def crear_login_ticket_request(filename="/tmp/loginTicketRequest.xml"):
     unique_id = str(uuid.uuid4().int)[:10]
     now = datetime.now(timezone.utc) - timedelta(hours=3)
     generation_time = (now - timedelta(minutes=10)).strftime("%Y-%m-%dT%H:%M:%S")
@@ -58,25 +61,31 @@ def crear_login_ticket_request(filename="loginTicketRequest.xml"):
     return filename
 
 def firmar_ticket(xml_path, cms_path):
-    subprocess.run([
-        "openssl", "smime", "-sign",
-        "-signer", CERT_PATH,
-        "-inkey", KEY_PATH,
-        "-in", xml_path,
-        "-out", cms_path,
-        "-outform", "DER",
-        "-nodetach"
-    ], check=True)
+    try:
+        subprocess.run([
+            "openssl", "smime", "-sign",
+            "-signer", CERT_PATH,
+            "-inkey", KEY_PATH,
+            "-in", xml_path,
+            "-out", cms_path,
+            "-outform", "DER",
+            "-nodetach"
+        ], check=True)
+    except subprocess.CalledProcessError as e:
+        print("[ERROR] Falló la firma del ticket con OpenSSL:", e)
+        raise
 
 def ta_valido():
     if not os.path.exists(TA_FILE):
+        print("[INFO] TA no encontrado, se generará uno nuevo.")
         return False
     try:
         tree = etree.parse(TA_FILE)
         expiration = tree.findtext("//expirationTime")
         expiration_dt = datetime.strptime(expiration, "%Y-%m-%dT%H:%M:%S")
         return datetime.now() < expiration_dt
-    except:
+    except Exception as e:
+        print("[ERROR] Fallo al leer el TA:", e)
         return False
 
 def leer_ta():
@@ -93,8 +102,8 @@ def obtener_token_y_sign():
     if ta_valido():
         return leer_ta()
 
-    xml_path = "loginTicketRequest.xml"
-    cms_path = "loginTicketRequest.cms"
+    xml_path = "/tmp/loginTicketRequest.xml"
+    cms_path = "/tmp/loginTicketRequest.cms"
 
     crear_login_ticket_request(xml_path)
     firmar_ticket(xml_path, cms_path)
@@ -120,7 +129,6 @@ def emitir_factura(productos, total, forma_pago):
         client = Client(wsdl=WSDL_WSFE)
         service = client.service
 
-        # Obtener último número autorizado
         punto_venta = 1
         tipo_cbte = 11  # Factura C
         ultimo = service.FECompUltimoAutorizado(
@@ -132,7 +140,6 @@ def emitir_factura(productos, total, forma_pago):
         nuevo_nro = ultimo.CbteNro + 1
         hoy = datetime.now().strftime("%Y%m%d")
 
-        # Emitir factura
         data = {
             "Auth": {"Token": token, "Sign": sign, "Cuit": CUIT_EMISOR},
             "FeCAEReq": {
