@@ -182,9 +182,10 @@ def emitir_factura(productos, total, forma_pago):
                             "CbteFch": hoy,
                             "ImpTotal": total,
                             "ImpNeto": total,
+                            "ImpTotConc": 0.0,     # ← No gravado
+                            "ImpOpEx": 0.0,        # ← Exentas
                             "ImpIVA": 0.0,
                             "ImpTrib": 0.0,
-                            "ImpTotConc": 0.0,  # ✅ Campo requerido aunque sea cero
                             "MonId": "PES",
                             "MonCotiz": 1.0
                     }]
