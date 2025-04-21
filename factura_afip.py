@@ -174,18 +174,19 @@ def emitir_factura(productos, total, forma_pago):
                 },
                 "FeDetReq": {
                     "FECAEDetRequest": [{
-                        "Concepto": 1,
-                        "DocTipo": 99,
-                        "DocNro": 0,
-                        "CbteDesde": nuevo_nro,
-                        "CbteHasta": nuevo_nro,
-                        "CbteFch": hoy,
-                        "ImpTotal": total,
-                        "ImpNeto": total,
-                        "ImpIVA": 0.0,
-                        "ImpTrib": 0.0,
-                        "MonId": "PES",
-                        "MonCotiz": 1.0
+                            "Concepto": 1,
+                            "DocTipo": 99,
+                            "DocNro": 0,
+                            "CbteDesde": nuevo_nro,
+                            "CbteHasta": nuevo_nro,
+                            "CbteFch": hoy,
+                            "ImpTotal": total,
+                            "ImpNeto": total,
+                            "ImpIVA": 0.0,
+                            "ImpTrib": 0.0,
+                            "ImpTotConc": 0.0,  # ✅ Campo requerido aunque sea cero
+                            "MonId": "PES",
+                            "MonCotiz": 1.0
                     }]
                 }
             }
