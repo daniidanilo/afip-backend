@@ -59,10 +59,18 @@ SERVICE = "wsfe"
 def crear_login_ticket_request(filename="loginTicketRequest.xml"):
     unique_id = str(uuid.uuid4().int)[:10]
 
-    # AFIP espera la hora local de Argentina (UTC-3)
-    now_utc_minus_3 = datetime.utcnow() - timedelta(hours=3)
-    generation_time = (now_utc_minus_3 - timedelta(minutes=10)).strftime("%Y-%m-%dT%H:%M:%S")
-    expiration_time = (now_utc_minus_3 + timedelta(minutes=10)).strftime("%Y-%m-%dT%H:%M:%S")
+    # Define la zona horaria de Argentina (UTC-3)
+    arg_timezone = timezone(timedelta(hours=-3))
+
+    # Obtiene la hora actual en UTC y la hace "aware"
+    now_utc_aware = datetime.now(timezone.utc)
+
+    # Convierte la hora UTC aware a la zona horaria de Argentina
+    now_arg_aware = now_utc_aware.astimezone(arg_timezone)
+
+    # Calcula generationTime y expirationTime basados en la hora aware de Argentina
+    generation_time = (now_arg_aware - timedelta(minutes=10)).strftime("%Y-%m-%dT%H:%M:%S")
+    expiration_time = (now_arg_aware + timedelta(minutes=10)).strftime("%Y-%m-%dT%H:%M:%S")
 
     root = etree.Element("loginTicketRequest", version="1.0")
     header = etree.SubElement(root, "header")
@@ -74,6 +82,11 @@ def crear_login_ticket_request(filename="loginTicketRequest.xml"):
     tree = etree.ElementTree(root)
     tree.write(filename, xml_declaration=True, encoding="UTF-8", pretty_print=True)
     return filename
+
+if __name__ == "__main__":
+    filename = crear_login_ticket_request()
+    print(f"Archivo XML creado: {filename}")
+
 
 
 # =============================
