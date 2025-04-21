@@ -8,7 +8,7 @@ from zeep import Client
 from datetime import datetime, timezone, timedelta
 
 def obtener_tiempos_afip():
-    now = datetime.now(timezone.utc)
+    now = datetime.now(timezone.utc)  # ✅ CORRECTO
     generation_time = (now - timedelta(minutes=10)).strftime("%Y-%m-%dT%H:%M:%S")
     expiration_time = (now + timedelta(minutes=10)).strftime("%Y-%m-%dT%H:%M:%S")
     return {
