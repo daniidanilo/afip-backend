@@ -38,7 +38,7 @@ WSDL_WSAA = "https://wsaahomo.afip.gov.ar/ws/services/LoginCms?WSDL"
 WSDL_WSFE = "https://wswhomo.afip.gov.ar/wsfev1/service.asmx?WSDL"
 CUIT_EMISOR = "20352305368"  # Reemplazá con tu CUIT
 SERVICE = "wsfe"
-TA_FILE = "/tmp/token_afip.xml"
+TA_FILE = "afip_cert/token_afip.xml"
 
 # ==============================
 # 2. AUTENTICACIÓN (WSAA + CACHE)
