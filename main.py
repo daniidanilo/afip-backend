@@ -2,6 +2,7 @@ from fastapi import FastAPI
 from pydantic import BaseModel
 from typing import List
 from factura_afip import emitir_factura
+import os
 
 app = FastAPI()
 
@@ -48,3 +49,13 @@ def facturar(venta: Venta):
             "estado": "rechazado",
             "error": f"Error en emitir_factura: {str(e)}"
         }
+
+# ============================
+# ENDPOINT DE VERIFICACIÓN
+# ============================
+@app.get("/cert-status")
+def cert_status():
+    return {
+        "crt_encontrado": os.path.exists("afip_cert/afip.crt"),
+        "key_encontrado": os.path.exists("afip_cert/afip.key")
+    }
