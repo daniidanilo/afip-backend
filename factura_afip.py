@@ -95,12 +95,18 @@ def leer_ta():
     return token, sign
 
 def guardar_ta(xml):
-    with open(TA_FILE, "w") as f:
-        f.write(xml)
+    try:
+        with open(TA_FILE, "w") as f:
+            f.write(xml)
+        print(f"[INFO] TA guardado correctamente en {TA_FILE}")
+    except Exception as e:
+        print(f"[ERROR] No se pudo guardar el TA: {e}")
+        raise
+
 
 def obtener_token_y_sign():
     if ta_valido():
-        print("[INFO] Usando TA en caché.")
+        print("[INFO] Usando TA en caché (local).")
         return leer_ta()
 
     xml_path = "/tmp/loginTicketRequest.xml"
@@ -117,22 +123,26 @@ def obtener_token_y_sign():
     try:
         response = client.service.loginCms(cms_base64)
         guardar_ta(response)
-
     except Exception as e:
         if "TA valido" in str(e):
+            print("[WARN] TA válido en AFIP pero archivo local no se generó aún.")
             if os.path.exists(TA_FILE):
-                print("[INFO] TA válido detectado y existe en el sistema. Usando TA en caché.")
+                print("[INFO] Archivo TA encontrado después del error. Se usará.")
                 return leer_ta()
             else:
-                print("[ERROR] TA válido en AFIP pero no encontrado en local. No se puede continuar.")
+                print("[ERROR] TA válido pero archivo local no disponible.")
                 raise Exception("TA válido en AFIP pero no encontrado en local")
         else:
             raise
 
-    token_xml = etree.fromstring(response.encode())
-    token = token_xml.findtext("//token")
-    sign = token_xml.findtext("//sign")
-    return token, sign
+    # Verificamos inmediatamente si se guardó y podemos leerlo
+    if os.path.exists(TA_FILE):
+        print("[INFO] TA guardado y listo para usar.")
+        return leer_ta()
+    else:
+        print("[ERROR] TA no fue encontrado justo después de ser guardado.")
+        raise Exception("Error al guardar TA")
+
 
 # ============================================
 # 3. EMISIÓN DE FACTURA C CON WSFEv1 (CAE real)
