@@ -100,6 +100,7 @@ def guardar_ta(xml):
 
 def obtener_token_y_sign():
     if ta_valido():
+        print("[INFO] Usando TA en caché.")
         return leer_ta()
 
     xml_path = "/tmp/loginTicketRequest.xml"
@@ -115,14 +116,19 @@ def obtener_token_y_sign():
 
     try:
         response = client.service.loginCms(cms_base64)
+        guardar_ta(response)
+
     except Exception as e:
         if "TA valido" in str(e):
-            print("[WARN] TA válido en AFIP pero perdido localmente. Reintentando...")
-            response = client.service.loginCms(cms_base64)  # Reintento forzado
+            if os.path.exists(TA_FILE):
+                print("[INFO] TA válido detectado y existe en el sistema. Usando TA en caché.")
+                return leer_ta()
+            else:
+                print("[ERROR] TA válido en AFIP pero no encontrado en local. No se puede continuar.")
+                raise Exception("TA válido en AFIP pero no encontrado en local")
         else:
             raise
 
-    guardar_ta(response)
     token_xml = etree.fromstring(response.encode())
     token = token_xml.findtext("//token")
     sign = token_xml.findtext("//sign")
