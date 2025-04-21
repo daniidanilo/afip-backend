@@ -59,13 +59,12 @@ SERVICE = "wsfe"
 def crear_login_ticket_request(filename="loginTicketRequest.xml"):
     unique_id = str(uuid.uuid4().int)[:10]
 
-    # Hora actual en UTC
+    # Hora actual UTC
     now_utc = datetime.now(timezone.utc)
 
-    # Ajustar a hora argentina (UTC-3)
-    now_arg = now_utc - timedelta(hours=3)
+    # Hora ajustada a UTC-3, sin información de zona horaria (AFIP requiere esto)
+    now_arg = (now_utc - timedelta(hours=3)).replace(tzinfo=None)
 
-    # Generation y Expiration time en horario UTC-3
     generation_time = (now_arg - timedelta(minutes=10)).strftime("%Y-%m-%dT%H:%M:%S")
     expiration_time = (now_arg + timedelta(minutes=10)).strftime("%Y-%m-%dT%H:%M:%S")
 
@@ -79,10 +78,6 @@ def crear_login_ticket_request(filename="loginTicketRequest.xml"):
     tree = etree.ElementTree(root)
     tree.write(filename, xml_declaration=True, encoding="UTF-8", pretty_print=True)
     return filename
-
-if __name__ == "__main__":
-    filename = crear_login_ticket_request()
-    print(f"Archivo XML creado: {filename}")
 
 
 # =============================
