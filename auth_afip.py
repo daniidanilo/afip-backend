@@ -40,8 +40,9 @@ SERVICE = "wsfe"
 # ============================
 def crear_login_ticket_request(filename="loginTicketRequest.xml"):
     unique_id = str(uuid.uuid4().int)[:10]
-    generation_time = (datetime.datetime.now() - datetime.timedelta(minutes=10)).isoformat()
-    expiration_time = (datetime.datetime.now() + datetime.timedelta(minutes=10)).isoformat()
+    now = datetime.datetime.now(datetime.timezone.utc)
+    generation_time = (now - datetime.timedelta(minutes=10)).strftime("%Y-%m-%dT%H:%M:%S")
+    expiration_time = (now + datetime.timedelta(minutes=10)).strftime("%Y-%m-%dT%H:%M:%S")
 
     root = etree.Element("loginTicketRequest", version="1.0")
     header = etree.SubElement(root, "header")
@@ -85,7 +86,7 @@ def obtener_token_y_sign():
     response = client.service.loginCms(cms_base64)
 
     token_xml = etree.fromstring(response.encode())
-    token = token_xml.findtext("//token")
-    sign = token_xml.findtext("//sign")
+    token = token_xml.findtext(".//token")
+    sign = token_xml.findtext(".//sign")
 
     return token, sign
