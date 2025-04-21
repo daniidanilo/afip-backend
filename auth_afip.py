@@ -3,30 +3,27 @@ import datetime
 import uuid
 import subprocess
 import os
-import logging
 from lxml import etree
 from zeep import Client
 from datetime import datetime, timezone, timedelta
 
+# ==========================
+# 1. FUNCIONES DE DIAGNÓSTICO
+# ==========================
 def obtener_tiempos_afip():
-    now = datetime.now(timezone.utc)
+    # ⚠️ Ajustamos 3 horas hacia atrás (hora argentina)
+    now = datetime.now(timezone.utc) - timedelta(hours=3)
     generation_time = (now - timedelta(minutes=10)).strftime("%Y-%m-%dT%H:%M:%S")
     expiration_time = (now + timedelta(minutes=10)).strftime("%Y-%m-%dT%H:%M:%S")
     return {
         "generationTime": generation_time,
         "expirationTime": expiration_time,
-        "serverTimeUTC": now.strftime("%Y-%m-%dT%H:%M:%S"),
-        "serverTimeLocal": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        "serverTimeUTC": (now + timedelta(hours=3)).strftime("%Y-%m-%dT%H:%M:%S"),
+        "serverTimeLocal": now.strftime("%Y-%m-%d %H:%M:%S")
     }
 
-# Configura el logging para que Render lo muestre
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s [%(levelname)s] %(message)s"
-)
-
 # =======================
-# 1. GUARDAR CERTIFICADOS
+# 2. GUARDAR CERTIFICADOS
 # =======================
 def guardar_certificados():
     cert_b64 = os.getenv("AFIP_CERT_B64")
@@ -43,35 +40,26 @@ def guardar_certificados():
     with open("afip_cert/afip.key", "wb") as key_file:
         key_file.write(base64.b64decode(key_b64))
 
-# Ejecutamos esto al importar el archivo
+# Ejecutamos al importar
 guardar_certificados()
 
 # ======================
-# 2. CONFIGURACIÓN AFIP
+# 3. CONFIGURACIÓN AFIP
 # ======================
 CERT_PATH = "afip_cert/afip.crt"
 KEY_PATH = "afip_cert/afip.key"
 WSDL_WSAA = "https://wsaahomo.afip.gov.ar/ws/services/LoginCms?WSDL"
 SERVICE = "wsfe"
 
-# ============================
-# 3. CREACIÓN DEL TICKET XML
-# ============================
+# =============================
+# 4. CREACIÓN DEL XML DEL TICKET
+# =============================
 def crear_login_ticket_request(filename="loginTicketRequest.xml"):
     unique_id = str(uuid.uuid4().int)[:10]
-    from datetime import timezone
+    now = datetime.now(timezone.utc) - timedelta(hours=3)  # ✅ Hora Argentina
 
-    now = datetime.datetime.now(timezone.utc)
-    generation_time = (now - datetime.timedelta(minutes=10)).strftime("%Y-%m-%dT%H:%M:%S")
-    expiration_time = (now + datetime.timedelta(minutes=10)).strftime("%Y-%m-%dT%H:%M:%S")
-
-    # Log horario visible en Render
-    logging.info("======= LOG DE HORA PARA DEBUG =======")
-    logging.info(f"Hora actual UTC: {now.isoformat()}")
-    logging.info(f"Hora actual Argentina: {(now - datetime.timedelta(hours=3)).isoformat()}")
-    logging.info(f"generationTime: {generation_time}")
-    logging.info(f"expirationTime: {expiration_time}")
-    logging.info("======================================")
+    generation_time = (now - timedelta(minutes=10)).strftime("%Y-%m-%dT%H:%M:%S")
+    expiration_time = (now + timedelta(minutes=10)).strftime("%Y-%m-%dT%H:%M:%S")
 
     root = etree.Element("loginTicketRequest", version="1.0")
     header = etree.SubElement(root, "header")
@@ -85,7 +73,7 @@ def crear_login_ticket_request(filename="loginTicketRequest.xml"):
     return filename
 
 # =============================
-# 4. FIRMA DEL XML CON OPENSSL
+# 5. FIRMA DEL XML CON OPENSSL
 # =============================
 def firmar_ticket_con_openssl(xml_path, cms_path):
     subprocess.run([
@@ -99,7 +87,7 @@ def firmar_ticket_con_openssl(xml_path, cms_path):
     ], check=True)
 
 # ==================================
-# 5. CONSUMO DEL SERVICIO WSAA AFIP
+# 6. CONSUMO DEL SERVICIO WSAA AFIP
 # ==================================
 def obtener_token_y_sign():
     xml_path = "loginTicketRequest.xml"
@@ -119,3 +107,23 @@ def obtener_token_y_sign():
     sign = token_xml.findtext("//sign")
 
     return token, sign
+
+# =================================
+# 7. FUNCIÓN DE FACTURACIÓN SIMULADA
+# =================================
+def emitir_factura(productos, total, forma_pago):
+    try:
+        token, sign = obtener_token_y_sign()
+
+        return {
+            "cae": "12345678901234",
+            "vto_cae": "20250430",
+            "nro_comprobante": 1,
+            "fecha": datetime.now().strftime("%Y%m%d"),
+            "total": total,
+            "forma_pago": forma_pago,
+            "productos": productos
+        }
+
+    except Exception as e:
+        raise Exception(f"Error en emitir_factura: {str(e)}")
