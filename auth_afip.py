@@ -3,6 +3,7 @@ import datetime
 import uuid
 import subprocess
 import os
+import logging
 from lxml import etree
 from zeep import Client
 
@@ -46,13 +47,13 @@ def crear_login_ticket_request(filename="loginTicketRequest.xml"):
     generation_time = (now - datetime.timedelta(minutes=10)).strftime("%Y-%m-%dT%H:%M:%S")
     expiration_time = (now + datetime.timedelta(minutes=10)).strftime("%Y-%m-%dT%H:%M:%S")
 
-    # Log horario
-    print("======= LOG DE HORA PARA DEBUG =======")
-    print(f"Hora actual UTC: {now.isoformat()}")
-    print(f"Hora actual Argentina: {(now - datetime.timedelta(hours=3)).isoformat()}")
-    print(f"generationTime: {generation_time}")
-    print(f"expirationTime: {expiration_time}")
-    print("======================================")
+    # Log horario visible en Render
+    logging.info("======= LOG DE HORA PARA DEBUG =======")
+    logging.info(f"Hora actual UTC: {now.isoformat()}")
+    logging.info(f"Hora actual Argentina: {(now - datetime.timedelta(hours=3)).isoformat()}")
+    logging.info(f"generationTime: {generation_time}")
+    logging.info(f"expirationTime: {expiration_time}")
+    logging.info("======================================")
 
     root = etree.Element("loginTicketRequest", version="1.0")
     header = etree.SubElement(root, "header")
