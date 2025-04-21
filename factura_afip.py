@@ -1,5 +1,4 @@
 import base64
-import datetime
 import uuid
 import subprocess
 import os
@@ -7,8 +6,11 @@ from lxml import etree
 from zeep import Client
 from datetime import datetime, timezone, timedelta
 
+# ============================
+# 0. OBTENER FECHA / HORA UTC
+# ============================
 def obtener_tiempos_afip():
-    now = datetime.now(timezone.utc)  # ✅ CORRECTO
+    now = datetime.now(timezone.utc)
     generation_time = (now - timedelta(minutes=10)).strftime("%Y-%m-%dT%H:%M:%S")
     expiration_time = (now + timedelta(minutes=10)).strftime("%Y-%m-%dT%H:%M:%S")
     return {
@@ -52,9 +54,9 @@ SERVICE = "wsfe"
 # ============================
 def crear_login_ticket_request(filename="loginTicketRequest.xml"):
     unique_id = str(uuid.uuid4().int)[:10]
-    now = datetime.datetime.now(datetime.timezone.utc)
-    generation_time = (now - datetime.timedelta(minutes=10)).strftime("%Y-%m-%dT%H:%M:%S")
-    expiration_time = (now + datetime.timedelta(minutes=10)).strftime("%Y-%m-%dT%H:%M:%S")
+    now = datetime.now(timezone.utc)
+    generation_time = (now - timedelta(minutes=10)).strftime("%Y-%m-%dT%H:%M:%S")
+    expiration_time = (now + timedelta(minutes=10)).strftime("%Y-%m-%dT%H:%M:%S")
 
     root = etree.Element("loginTicketRequest", version="1.0")
     header = etree.SubElement(root, "header")
@@ -109,14 +111,13 @@ def obtener_token_y_sign():
 def emitir_factura(productos, total, forma_pago):
     try:
         token, sign = obtener_token_y_sign()
-        # Aquí en el futuro se llamará al WSFEv1 con ese token y sign
-        # Por ahora devolvemos respuesta simulada para probar backend
 
+        # Por ahora simula emisión (no llama WSFEv1 real todavía)
         return {
             "cae": "12345678901234",
             "vto_cae": "20250430",
             "nro_comprobante": 1,
-            "fecha": datetime.datetime.now().strftime("%Y%m%d"),
+            "fecha": datetime.now().strftime("%Y%m%d"),
             "total": total,
             "forma_pago": forma_pago,
             "productos": productos
